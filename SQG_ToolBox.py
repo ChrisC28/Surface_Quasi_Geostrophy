@@ -41,7 +41,20 @@ class SQG:
         return surf_strfun, interior_strfun, total_strfun
         
     def Vertical_Eigenmodes(self):
+        '''
+        PUBLIC: Vertical_Eigenmodes
+        Solves the special case of the Sturm-Liouville problem:
         
+            d/dz[S(z)dpdz] = -gamma^2 p 
+        
+        with 
+        
+            dpdz = 0 @ z=0,-H
+        
+        for a general density profile S(z) = 1/rho(z) using second order 
+        finite differences. The precomputed vertical differentiation matrix
+        is used to solve the eigenvalue problem. 
+        ''' 
         delta_z = self.z_grid[0]-self.z_grid[1]
         #Put the tridiagonal matrix into dense matrix form to 
         #compute the eigenvalues and eigenvectors
@@ -217,8 +230,28 @@ class SQG:
         #Finished the projection onto the barotropic and baroclinic modes.
         #We return the trimmed function 
         return  interior_streamfunction[:,0:nY,0:nX].real
+    
+    def Modify_Density(self,rho_profile):
         
-                
+        '''
+        PUBLIC: Modify_Density
+        
+        Function modifies the density profile used as the background state in
+        the SQG formulation. 
+        '''    
+        #Replace the old density profile with the new 
+        self.rho_profile = rho_profile
+        
+        #Rebuild the differentiation matricies and compute the eigenvalues/
+        #eigenvectors
+        self.vert_diff_matrix_tridiag = self.__Build_Vertical_Diff_Matrix()
+
+        rossby_rad,barotropic_mode,baroclinic_mode = self.Vertical_Eigenmodes()
+        self.rossby_rad = rossby_rad
+        self.barotropic_mode = barotropic_mode
+        self.baroclinic_mode = baroclinic_mode
+        self.vertical_modes_initialised = True
+
     #========================================================================#
     # PRIVATE FUNCTIONS
     #  - Build_Vertical_Diff_Matrix: used to create the tridiagonal matrix 
