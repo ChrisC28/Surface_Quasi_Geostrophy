@@ -220,6 +220,12 @@ class SQG:
         #Enforce periodicity of the input surface field by mirror symetry
         mirror_dyn_height = self.__Mirror_Field(surf_dyn_height)
         
+        if exapansion_coeffs != None:
+            n_higher_modes,_,_ = exapansion_coeffs.shape 
+            exapansion_coeffs_mirror = np.zeros([n_higher_modes,2*nY,2*nX],dtype=exapansion_coeffs.dtype)
+            for i_mode in range(0,n_higher_modes):
+                exapansion_coeffs_mirror[i_mode,:,:] = self.__Mirror_Field(exapansion_coeffs[i_mode,:,:])
+        
         #Get the 2D Fourier Transform of the surface field 
         FT_dyn_height = fft2(mirror_dyn_height)
         FT_interior_streamfunction = np.zeros_like(self.SQG_streamfunction_FFT)
@@ -236,7 +242,9 @@ class SQG:
                                 FT_dyn_height[iY,iX]-self.SQG_streamfunction_FFT[0,iY,iX],-self.SQG_streamfunction_FFT[self.nZ-1,iY,iX]+0.0j)
                  
                 #Reconstruct the interior streamfunction in wavenumber space
-   
+                print 'barotropic baroclinic expansion coeffs'
+                print coeff0
+                print coeff1
                 if exapansion_coeffs==None:        
                     #if we are only using two modes, then the method reverts to
                     #the intSQG method proposed by Wang et al. (2013) where the
@@ -245,8 +253,11 @@ class SQG:
                     FT_interior_streamfunction[:,iY,iX] =coeff0*normal_modes[:,0] + coeff1*normal_modes[:,1]
                 else:
                     FT_interior_streamfunction[:,iY,iX] =coeff0*normal_modes[:,0] + coeff1*normal_modes[:,1] 
-                    for i_mode in range(0,len(exapansion_coeffs)):
-                        FT_interior_streamfunction[:,iY,iX] = FT_interior_streamfunction[:,iY,iX] +   exapansion_coeffs[i_mode]*normal_modes[:,i_mode+2]   
+                    print '====='
+                    print n_higher_modes
+                    for i_mode in range(0,n_higher_modes):
+                        print i_mode+2
+                        FT_interior_streamfunction[:,iY,iX] = FT_interior_streamfunction[:,iY,iX] +   exapansion_coeffs_mirror[i_mode,iY,iX]*normal_modes[:,i_mode+2]   
                                                                   
         #Inverse Fourier Transform to convert back to the physical domain
         interior_streamfunction = np.zeros_like(FT_interior_streamfunction)
