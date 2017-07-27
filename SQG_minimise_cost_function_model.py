@@ -8,8 +8,12 @@ import matplotlib.gridspec as gridspec
 from scipy.interpolate import interp1d as scipy_interp1d
 from scipy.stats import linregress
 from scipy.interpolate import interpn as scipy_interpnd
+from os.path import join, isfile, isdir
 
-SQG_Toolbox = imp.load_source('SQG_Toolbox', '/home/cchlod/PV_Inversion/SQG_Inversion/SQG_ToolBox.py')
+try:
+    SQG_Toolbox = imp.load_source('SQG_Toolbox', '/home/cchlod/PV_Inversion/SQG_Inversion/SQG_ToolBox.py')
+except FileNotFoundError:
+    import SQG_ToolBox as SQG_Toolbox
 
 def SQG_reconstruction(x_grid,y_grid,depth_grid,SSH,SST,density_profile,x_obs,y_obs,z_obs):
     
@@ -64,6 +68,12 @@ y_lim = [150,250]
 # Time Variable Data File Definitions
 #======================================#
 file_path          = '/media/2EC0D69917D1DC10/RIDGE05KM/Output/'
+if not isdir(file_path):
+    file_path = '/net/argos/data/peps/cchlod/CHANNEL_OUTPUT/'
+    
+if not isdir(file_path):
+    raise FileNotFoundError('Directory '+file_path+' does not exist')
+    
 T_file_name_stem   = 'RIDGE05KM_5d_02000101_02001231_grid_T.nc'
 U_file_name_stem   = 'RIDGE05KM_5d_02000101_02001231_grid_U.nc'
 V_file_name_stem   = 'RIDGE05KM_5d_02000101_02001231_grid_V.nc'
@@ -73,6 +83,14 @@ sig_file_name_stem = 'sig0_RIDGE05KM_02000101_02001231.nc'
 # Time Mean Data File Definitions
 #=====================================#
 data_ridge_dir_path  = '/home/cchlod/NEMO_ANALYSIS/RIDGE05KM/'
+if not isdir(data_ridge_dir_path):
+    data_ridge_dir_path = '/net/argos/data/peps/cchlod/CHANNEL_OUTPUT/'
+    
+if not isdir(data_ridge_dir_path):
+    raise FileNotFoundError('Directory '+data_ridge_dir_path+' does not exist')
+    
+
+
 mean_T_file_name            = 'T_mean_5d_RIDGE05KM_165_225.nc'
 U_depth_mean_file_name      = 'U_mean_5d_RIDGE05KM_165_225.nc'
 V_depth_mean_file_name      = 'V_mean_5d_RIDGE05KM_165_225.nc'
@@ -188,8 +206,8 @@ z_obs = np.ones(n_obs,dtype=x_obs.dtype)*depth_T[depth_to_get]
 
  
 #SQG reconstruction at the psuedo obs locations
-u_recon,v_recon = SQG_reconstruction(xT,yT,depth_T,SSH_anom_ridge,sigma0_anom_ridge[0,:,:],mean_sigma_ridge_domain_ave,x_obs,y_obs,z_obs)
-
+#u_recon,v_recon = SQG_reconstruction(xT,yT,depth_T,SSH_anom_ridge,sigma0_anom_ridge[0,:,:],mean_sigma_ridge_domain_ave,x_obs,y_obs,z_obs)
+u_recon,v_recon = SQG_reconstruction(xT,yT,depth_T,SSH_anom_ridge,T_anom_ridge[0,:,:],mean_sigma_ridge_domain_ave,x_obs,y_obs,z_obs)
 
 #Estimate the 'true' value of u and v at the psuedo obs locations
 u_obs =  scipy_interpnd( (x_u,y_u),U_anom_ridge[depth_to_get,:,:].T,

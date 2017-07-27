@@ -1,10 +1,15 @@
 # -*- coding: utf-8 -*-
+from __future__ import print_function
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy import linalg
 from scipy.fftpack import fft2,ifft2,fftshift,ifftshift,fftfreq
 import scipy.sparse as sparse  
 import scipy.sparse.linalg as sparse_linalg
+from past.builtins import xrange
+
+DEBUG = False
+
 
 class SQG:
     
@@ -242,9 +247,10 @@ class SQG:
                                 FT_dyn_height[iY,iX]-self.SQG_streamfunction_FFT[0,iY,iX],-self.SQG_streamfunction_FFT[self.nZ-1,iY,iX]+0.0j)
                  
                 #Reconstruct the interior streamfunction in wavenumber space
-                print 'barotropic baroclinic expansion coeffs'
-                print coeff0
-                print coeff1
+                if DEBUG:
+                    print ('barotropic baroclinic expansion coeffs')
+                    print (coeff0)
+                    print (coeff1)
                 if exapansion_coeffs==None:        
                     #if we are only using two modes, then the method reverts to
                     #the intSQG method proposed by Wang et al. (2013) where the
@@ -253,10 +259,12 @@ class SQG:
                     FT_interior_streamfunction[:,iY,iX] =coeff0*normal_modes[:,0] + coeff1*normal_modes[:,1]
                 else:
                     FT_interior_streamfunction[:,iY,iX] =coeff0*normal_modes[:,0] + coeff1*normal_modes[:,1] 
-                    print '====='
-                    print n_higher_modes
+                    if DEBUG:
+                        print ('=====')
+                        print (n_higher_modes)
                     for i_mode in range(0,n_higher_modes):
-                        print i_mode+2
+                        if DEBUG:
+                            print (i_mode+2)
                         FT_interior_streamfunction[:,iY,iX] = FT_interior_streamfunction[:,iY,iX] +   exapansion_coeffs_mirror[i_mode,iY,iX]*normal_modes[:,i_mode+2]   
                                                                   
         #Inverse Fourier Transform to convert back to the physical domain
@@ -352,7 +360,7 @@ class SQG:
         '''
         #Size of the input grid
         nY,nX=input_field.shape 
-        mirror_field = np.zeros([2.0*nY,2.0*nX],dtype=input_field.dtype)
+        mirror_field = np.zeros([2*nY,2*nX],dtype=input_field.dtype)
         
         
         mirror_field[0:nY,0:nX]       = input_field            #1st quadrant
