@@ -5,6 +5,7 @@ from scipy import linalg
 from scipy.fftpack import fft2,ifft2,fftshift,ifftshift,fftfreq
 import scipy.sparse as sparse  
 import scipy.sparse.linalg as sparse_linalg
+from past.builtins import xrange
 
 class SQG:
     
@@ -334,7 +335,7 @@ class SQG:
         '''
         #Size of the input grid
         nY,nX=input_field.shape 
-        mirror_field = np.zeros([2.0*nY,2.0*nX],dtype=input_field.dtype)
+        mirror_field = np.zeros([2*nY,2*nX],dtype=input_field.dtype)
         
         
         mirror_field[0:nY,0:nX]       = input_field            #1st quadrant
