@@ -25,22 +25,46 @@ class SQG:
 
         self.vert_diff_matrix_tridiag = self.__Build_Vertical_Diff_Matrix()
     
-    def Solve_Total_Streamfunction(self,SLA,SST,delta_x,delta_y):
+    def Solve_Total_Streamfunction(self,SLA,SST,delta_x,delta_y,mode_coeffs=None):
         
         if not self.vertical_modes_initialised:
-            rossby_rad,barotropic_mode,baroclinic_mode = self.Vertical_Eigenmodes()
+            rossby_rad,normal_modes = self.Vertical_Eigenmodes()
             self.rossby_rad = rossby_rad
-            self.barotropic_mode = barotropic_mode
-            self.baroclinic_mode = baroclinic_mode
+            self.normal_modes = normal_modes
             self.vertical_modes_initialised = True
         
         surf_strfun     = self.Solve_Surface_Streamfunction((self.G0*self.THERMAL_COEFF)*SST,delta_x,delta_y)
-        interior_strfun = self.Solve_Interior_Streamfunction((self.G0/self.F0)*SLA,self.barotropic_mode,self.baroclinic_mode)
+        #surf_strfun     = self.Solve_Surface_Streamfunction(SST,delta_x,delta_y)
+        if mode_coeffs==None:
+            interior_strfun = self.Solve_Interior_Streamfunction((self.G0/self.F0)*SLA,self.normal_modes)
+        else:
+            interior_strfun = self.Solve_Interior_Streamfunction((self.G0/self.F0)*SLA,self.normal_modes,exapansion_coeffs=mode_coeffs)
         total_strfun    = surf_strfun + interior_strfun
     
         return surf_strfun, interior_strfun, total_strfun
+    
+    def Modify_Density(self,rho_profile):
         
+        '''
+        PUBLIC: Modify_Density
+        
+        Function modifies the density profile used as the background state in
+        the SQG formulation. 
+        '''    
+        #Replace the old density profile with the new 
+        self.rho_profile = rho_profile
+        
+        #Rebuild the differentiation matricies and compute the eigenvalues/
+        #eigenvectors
+        self.vert_diff_matrix_tridiag = self.__Build_Vertical_Diff_Matrix()
+
+        rossby_rad,normal_modes = self.Vertical_Eigenmodes()
+        self.rossby_rad = rossby_rad
+        self.normal_modes = normal_modes
+        self.vertical_modes_initialised = True  
+          
     def Vertical_Eigenmodes(self):
+        
         '''
         PUBLIC: Vertical_Eigenmodes
         Solves the special case of the Sturm-Liouville problem:
@@ -71,21 +95,24 @@ class SQG:
         sort_idx = np.argsort(np.sqrt(-eigenvalues))
         #We get only the first two eigenmodes, as these correspond to the 
         #
-        rossby_def_wavenumbers = -eigenvalues[sort_idx[0:2]] #[sort_idx[0:2]]
-        vertical_modes         =  eigenvectors[:,sort_idx[0:2]] # [:,sort_idx[0:2]]
+        rossby_def_wavenumbers = -eigenvalues[sort_idx] #[sort_idx[0:2]]
+        vertical_modes         =  eigenvectors[:,sort_idx] # [:,sort_idx[0:2]]
         del eigenvectors,eigenvalues
+        n_modes = rossby_def_wavenumbers.size
         
         #Normalise the eigenmodes such that the <v_m,v_n> = d_mn
         #where <:,:> is the inner product at d_mn is the delta function 
+        
         delta_z_norm = 1.0*delta_z/np.abs(self.z_grid[-1])
         
-        for i_mode in range(0,2):
+        for i_mode in range(0,n_modes):
             alpha= np.dot( (vertical_modes[:,i_mode]*delta_z_norm).T , vertical_modes[:,i_mode] )
             vertical_modes[:,i_mode]=vertical_modes[:,i_mode]/np.sqrt(alpha);
             if vertical_modes[1,i_mode]<0:
                 vertical_modes[:,i_mode] = -vertical_modes[:,i_mode]
+        
         #return the barotropic and baroclinic models and their rossby radii
-        return 1.0/np.sqrt(rossby_def_wavenumbers),vertical_modes[:,0],vertical_modes[:,1]
+        return 1.0/np.sqrt(rossby_def_wavenumbers),vertical_modes
  
     def Solve_Surface_Streamfunction(self,surf_buoyancy,delta_x,delta_y,solve_interior=True):
         
@@ -95,6 +122,7 @@ class SQG:
         \/^2p + d/dz(f_0^2/N^2 dp/dz) = 0 
         in 3-dimensions using mixed spectral/finite difference method
         '''        
+        
         nY,nX = surf_buoyancy.shape
         #Enforce periodicity of the input surface field by mirror symetry
         mirror_surf_buoyancy = self.__Mirror_Field(surf_buoyancy)
@@ -164,7 +192,7 @@ class SQG:
         #Return the trimmed version
         return SQG_streamfunction[:,0:nY,0:nX].real
     
-    def Solve_Interior_Streamfunction(self,surf_dyn_height,barotropic_mode,baroclinic_mode):
+    def Solve_Interior_Streamfunction(self,surf_dyn_height,normal_modes,exapansion_coeffs=None):
         
         '''
         PUBLIC: Solve_Interior_Streamfunction 
@@ -196,32 +224,30 @@ class SQG:
         FT_dyn_height = fft2(mirror_dyn_height)
         FT_interior_streamfunction = np.zeros_like(self.SQG_streamfunction_FFT)
         
-        #Build the maxtrix
-        #LHS_system = np.zeros([2,2],dtype='complex64')
-        #LHS_system[0,0] =barotropic_mode[0]+0.0j
-        #LHS_system[0,1] =baroclinic_mode[0]+0.0j
-        #
-        #LHS_system[1,0] =barotropic_mode[self.nZ-1]+0.0j
-        #LHS_system[1,1] =baroclinic_mode[self.nZ-1]+0.0j
-        #
-        #RHS = np.zeros([2],dtype='complex64')
         
         for iY in range(0,2*nY):
             for iX in range(0,2*nX):
-         #       RHS[0] = FT_dyn_height[iY,iX]-self.SQG_streamfunction_FFT[0,iY,iX]
-         #       RHS[1] = -self.SQG_streamfunction_FFT[self.nZ-1,iY,iX]
-          #      coeffs = linalg.solve(LHS_system, RHS)
-                
                 #Solve the 2x2 linear system analytically for every wavenumber
-                #to determine the expansion coefficients
+                #to determine the expansion coefficients for the barotropic and
+                #first baroclinic mode
                 coeff0,coeff1 = self.__Solve_2x2_Linear(
-                                    barotropic_mode[0]+0.0j,barotropic_mode[self.nZ-1]+0.0j,
-                                    baroclinic_mode[0]+0.0j,baroclinic_mode[self.nZ-1]+0.0j,
-                                    FT_dyn_height[iY,iX]-self.SQG_streamfunction_FFT[0,iY,iX],-self.SQG_streamfunction_FFT[self.nZ-1,iY,iX]+0.0j)
+                                normal_modes[0,0]+0.0j,normal_modes[self.nZ-1,0]+0.0j,
+                                normal_modes[0,1]+0.0j,normal_modes[self.nZ-1,1]+0.0j,
+                                FT_dyn_height[iY,iX]-self.SQG_streamfunction_FFT[0,iY,iX],-self.SQG_streamfunction_FFT[self.nZ-1,iY,iX]+0.0j)
+                 
                 #Reconstruct the interior streamfunction in wavenumber space
-                FT_interior_streamfunction[:,iY,iX] =coeff0 *barotropic_mode + coeff1*baroclinic_mode
-                #FT_interior_streamfunction[:,iY,iX] =coeffs[0] * barotropic_mode + coeffs[1] * baroclinic_mode
-        
+   
+                if exapansion_coeffs==None:        
+                    #if we are only using two modes, then the method reverts to
+                    #the intSQG method proposed by Wang et al. (2013) where the
+                    #expansion coefficients are determined by the boundary conditions
+                    #at the surface and at the ocean floor. 
+                    FT_interior_streamfunction[:,iY,iX] =coeff0*normal_modes[:,0] + coeff1*normal_modes[:,1]
+                else:
+                    FT_interior_streamfunction[:,iY,iX] =coeff0*normal_modes[:,0] + coeff1*normal_modes[:,1] 
+                    for i_mode in range(0,len(exapansion_coeffs)):
+                        FT_interior_streamfunction[:,iY,iX] = FT_interior_streamfunction[:,iY,iX] +   exapansion_coeffs[i_mode]*normal_modes[:,i_mode+2]   
+                                                                  
         #Inverse Fourier Transform to convert back to the physical domain
         interior_streamfunction = np.zeros_like(FT_interior_streamfunction)
         for iZ in range(0,self.nZ):
@@ -231,26 +257,7 @@ class SQG:
         #We return the trimmed function 
         return  interior_streamfunction[:,0:nY,0:nX].real
     
-    def Modify_Density(self,rho_profile):
-        
-        '''
-        PUBLIC: Modify_Density
-        
-        Function modifies the density profile used as the background state in
-        the SQG formulation. 
-        '''    
-        #Replace the old density profile with the new 
-        self.rho_profile = rho_profile
-        
-        #Rebuild the differentiation matricies and compute the eigenvalues/
-        #eigenvectors
-        self.vert_diff_matrix_tridiag = self.__Build_Vertical_Diff_Matrix()
-
-        rossby_rad,barotropic_mode,baroclinic_mode = self.Vertical_Eigenmodes()
-        self.rossby_rad = rossby_rad
-        self.barotropic_mode = barotropic_mode
-        self.baroclinic_mode = baroclinic_mode
-        self.vertical_modes_initialised = True
+    
 
     #========================================================================#
     # PRIVATE FUNCTIONS
