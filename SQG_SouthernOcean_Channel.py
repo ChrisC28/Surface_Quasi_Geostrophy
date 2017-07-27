@@ -90,7 +90,8 @@ rho_profile                 = np.interp(depth_SQG,depth_T,mean_sigma_ridge_domai
 SQG_object = SQG_Toolbox.SQG(-depth_SQG,rho_profile,F0)
 
 #Solve for the eigenvectors and eigenvalues, as they do not change with time
-rossby_wavenum,barotropic_mode,baroclinic_mode = SQG_object.Vertical_Eigenmodes()
+rossby_wavenum,normal_modes= SQG_object.Vertical_Eigenmodes()
+
 
 
 mean_u_recon = np.zeros([depth_T.size-1,yT.size-1,xT.size-1],dtype='float64')
@@ -137,7 +138,7 @@ mean_T_dataset.close()
 
 
 
-for iT in range(0,nT):
+for iT in range(0,1):  #nT):
     print iT,  ' of ', nT, 'time steps'
     #===================================#
     #Variable Temperature components
@@ -162,9 +163,19 @@ for iT in range(0,nT):
     #surf_strfun     = SQG_object.Solve_Surface_Streamfunction(0.5*G0 *THERMAL_COEFF * T_anom_ridge[0,:,:],delta_x*1.0e3,delta_y*1.0e3)
     surf_strfun     = SQG_object.Solve_Surface_Streamfunction(-G0*sigma0_anom_ridge[0,:,:],delta_x*1.0e3,delta_y*1.0e3)
 
-    interior_strfun = SQG_object.Solve_Interior_Streamfunction((G0/F0)*SSH_anom_ridge,barotropic_mode,baroclinic_mode)
+    interior_strfun = SQG_object.Solve_Interior_Streamfunction((G0/F0)*SSH_anom_ridge,normal_modes,[0.1])
     total_strfun = surf_strfun + interior_strfun
     
+    plt.figure(1)
+    plt.contourf(xT,yT,total_strfun[20,:,:],25,cmap=plt.cm.jet)
+    plt.show()
+    
+    
+    plt.figure(2)
+    plt.contourf(xT,yT,(G0/F0)*SSH_anom_ridge,25,cmap=plt.cm.jet)
+    plt.show()
+    
+    dsa
     #Reconstruct the temperature annomaly
     T_recon =  -(0.5*F0/(G0)) * (total_strfun[0:-1,:,:]-total_strfun[1::,:,:])/(depth_SQG[1::]-depth_SQG[0:-1])[:,np.newaxis,np.newaxis]
     
