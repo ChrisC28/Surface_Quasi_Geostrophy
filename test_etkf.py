@@ -8,7 +8,7 @@ Test ETKF
 """
 
 import numpy as np
-from etkf import ienkf
+from etkf import gn_ienkf
 from scipy.interpolate import interp1d
 import  matplotlib.pyplot as plt
 VERBOSE = 2
@@ -133,32 +133,8 @@ w = np.matrix(np.zeros((nens,1)))
 
 while epoch<nepoch:
     
-    #state parameter
-    x = x0 + A0*w
-    
-    #Ensemble in state space
-    E = x + epsilon*A0
-    
-    #Ensemble in observation space
-    Ey = np.matrix(H_ens(E))
-    
-    #Ensemle mean in observation space
-    y = np.mean(Ey,axis=1)
-    
-    #Linear tangent (approx)
-    Y = (Ey - y)/epsilon
-    
-    #Cost function gradient
-    GradJ = (nens - 1)*w - Y.transpose()*Rinv*(yobs - y)
-    
-    #Hessian
-    He = (n - 1)*Iens + Y.transpose()*Rinv*Y
-    
-    #Gauss-Newton increment
-    dw = np.linalg.solve(He,GradJ)
-    
-    w = w - dw
-    print('w=',w)
+    w = gn_ienkf(A0,w,x0,yobs,H_ens,Rinv,epsilon)
+ 
     
     epoch += 1
     

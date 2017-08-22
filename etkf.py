@@ -19,6 +19,36 @@ def gn_ienkf(A0,w,x0,yobs,H,Rinv,epsilon=1e-5):
     :param epsilon: parmeeter to perform finite difference
     return w
     """
+    nens = A0.shape[1]
+    Iens = np.matrix(np.identity(nens))
+    
+    #state parameter
+    x = x0 + A0*w
+    
+    #Ensemble in state space
+    E = x + epsilon*A0
+    
+    #Ensemble in observation space
+    Ey = np.matrix(H(E))
+    
+    #Ensemle mean in observation space
+    y = np.mean(Ey,axis=1)
+    
+    #Linear tangent (approx)
+    Y = (Ey - y)/epsilon
+    
+    #Cost function gradient
+    GradJ = (nens - 1)*w - Y.transpose()*Rinv*(yobs - y)
+    
+    #Hessian
+    He = (nens - 1)*Iens + Y.transpose()*Rinv*Y
+    
+    #Gauss-Newton increment
+    dw = np.linalg.solve(He,GradJ)
+    
+    w = w - dw
+    return w
+    
 def ienkf(A0,x,x0,yobs,T,H,R):
     """ iteration of iterative EnKF as described in 
     or IenKF : sakov, olivier, bertino 2011
