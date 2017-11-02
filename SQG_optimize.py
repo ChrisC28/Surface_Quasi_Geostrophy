@@ -9,18 +9,15 @@ TODO : add correlation of coefficients
 
 # %% Import
 import numpy as np
-import sys
 from scipy.optimize import minimize, least_squares, basinhopping
 import matplotlib.pyplot as plt
-from pca import pca4
+from pca import pca4, simulator
 from SQG_minimise_cost_function_model import \
-    SQG_reconstruction,\
     mean_sigma_ridge_domain_ave,\
     xT,yT,depth_T,\
     SSH_anom_ridge,\
     T_anom_ridge,\
-    U_anom_ridge,\
-    V_anom_ridge
+    
 
   
 # %% Prepare data    
@@ -35,58 +32,7 @@ z_obs = np.ones(n_obs,dtype=x_obs.dtype)*depth_T[depth_to_get]
 
 # %% 
 
-class simulator:
-    def __init__(self,x_grid,y_grid,depth_grid,SSH,SST,density_profile,x_obs,y_obs,z_obs,pca=None):
-        self._x_grid = x_grid
-        self._y_grid = y_grid
-        self._depth_grid = depth_grid
-        self._SSH = SSH
-        self._SST = SST
-        self._pca = pca
-        self._nsimul = 0
-        if self._pca is None:
-            self._density_profile = density_profile
-        else:
-            self._density_profile = pca.inverse_transform(density_profile)
-        self._x_obs = x_obs
-        self._y_obs = y_obs
-        self._z_obs = z_obs
-        
-    #set parameters
-    def set_params(self,**parameters):
-        #print(self._density_profile)
-        for par,val in parameters.items():
-         
-            if par == '_density_profile' and not self._pca is None:
-                val = self._pca.inverse_transform(val)
-            setattr(self,par,val)
-            
-        #print(self._density_profile)
 
-    def simulate(self):
-        self._nsimul = self._nsimul+1
-        #print('Sim nn',self._nsimul)
-        return SQG_reconstruction(self._x_grid,self._y_grid,self._depth_grid,
-                                  self._SSH,self._SST,self._density_profile,
-                                  self._x_obs,self._y_obs,self._z_obs)
-    
-
-    
-    def sim_gamma(self,density_profile):
-        self.set_params(_density_profile=density_profile)
-        return self.simulate()
-    
-    def residual_gamma(self,density_profile,uobs,vobs):
-        usim,vsim = self.sim_gamma(density_profile)
-        return (np.array((uobs,vobs))-np.array((usim,vsim))).ravel()
-    
-    def loss_gamma(self,density_profile,uobs,vobs):
-        
-        J = np.linalg.norm(self.residual_gamma(density_profile,uobs,vobs))
-        #print('loss = ',J)
-        return J
-        
-        
 
 # %% Twin Experiment
 sim = simulator(xT,yT,depth_T,SSH_anom_ridge,T_anom_ridge[0,:,:],mean_sigma_ridge_domain_ave,x_obs,y_obs,z_obs)

@@ -108,7 +108,7 @@ x0 = np.mean(E0,axis=1)
 
 R = sigobs*np.matrix(np.identity(nobs))
 yobs =H(xt) + np.random.multivariate_normal(np.zeros(nobs),R)
-yobs = np.matrix(yobs[:,np.newaxis])
+yobs = np.matrix(yobs[:,np.newaxis]) # shape = (nobs,1)
 
 plt.plot(t,xt,'-b')
 plt.plot(t,M(xt),'-r')

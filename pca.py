@@ -12,8 +12,9 @@ import xarray as xr
 import numpy as np
 import os
 from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler,FunctionTransformer
+from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
+from SQG_minimise_cost_function_model import SQG_reconstruction
 #Load data
 data_ridge_dir_path  = '/home/cchlod/NEMO_ANALYSIS/RIDGE05KM/'
 if not isdir(data_ridge_dir_path):
@@ -24,6 +25,9 @@ if not isdir(data_ridge_dir_path):
     
 sigma_mean_file_name        = 'sig0_RIDGE05KM_165_224.nc'
 
+#%%%%%%%%%%%%%%%%%%%%%%%%%%%
+n_components = 4
+#TODO : should be parametrized
 
 #%% Load data
 #============================#
@@ -59,7 +63,7 @@ scaler = StandardScaler().fit(Xmasked)
 X = scaler.transform(Xmasked)
 
 
-pca = PCA(n_components=1)
+pca = PCA(n_components=n_components)
 pca.fit(X)
 
 #%%plot PCA
@@ -110,3 +114,72 @@ class pcasim:
         
     
 pca4 = pcasim(pca,scaler,sigma.deptht)
+
+#%% Model Simulator class
+class simulator:
+    def __init__(self,x_grid,y_grid,depth_grid,SSH,SST,density_profile,x_obs,y_obs,z_obs,pca=None):
+        self._x_grid = x_grid
+        self._y_grid = y_grid
+        self._depth_grid = depth_grid
+        self._SSH = SSH
+        self._SST = SST
+        self._pca = pca
+        self._nsimul = 0
+        if self._pca is None:
+            self._density_profile = density_profile
+        else:
+            self._density_profile = pca.inverse_transform(density_profile)
+        self._x_obs = x_obs
+        self._y_obs = y_obs
+        self._z_obs = z_obs
+        
+    #set parameters
+    def set_params(self,**parameters):
+        #print(self._density_profile)
+        for par,val in parameters.items():
+         
+            if par == '_density_profile' and not self._pca is None:
+                if val.ndim == 2:
+                    val = np.transpose(val) #beause ensemble dim order != pca dim order
+                val = self._pca.inverse_transform(val)
+            setattr(self,par,val)
+            
+        #print(self._density_profile)
+
+    def simulate(self):
+        self._nsimul = self._nsimul+1
+        #print('Sim nn',self._nsimul)
+        if self._density_profile.ndim == 2:
+            u = []
+            v = []
+            for dp in self._density_profile:
+                utmp,vtmp = SQG_reconstruction(self._x_grid,self._y_grid,self._depth_grid,
+                                  self._SSH,self._SST,dp,
+                                  self._x_obs,self._y_obs,self._z_obs)
+                u.append(utmp)
+                v.append(vtmp)
+            u = np.transpose(np.array(u)) #shape = (n,nens)
+            v = np.transpose(np.array(v))
+            return u,v
+        else:    
+            return SQG_reconstruction(self._x_grid,self._y_grid,self._depth_grid,
+                                  self._SSH,self._SST,self._density_profile,
+                                  self._x_obs,self._y_obs,self._z_obs)
+    
+
+    
+    def sim_gamma(self,density_profile):
+        self.set_params(_density_profile=density_profile)
+        return self.simulate()
+    
+    def residual_gamma(self,density_profile,uobs,vobs):
+        usim,vsim = self.sim_gamma(density_profile)
+        return (np.array((uobs,vobs))-np.array((usim,vsim))).ravel()
+    
+    def loss_gamma(self,density_profile,uobs,vobs):
+        
+        J = np.linalg.norm(self.residual_gamma(density_profile,uobs,vobs))
+        #print('loss = ',J)
+        return J
+        
+        
